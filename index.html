@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#21150f">
+  <title>Daily Inferno Wave</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #21150f;
+      color: #f5e5c7;
+      font-synthesis: none;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 50% 0, #57321c 0, #302016 38rem, #21150f 75rem);
+    }
+
+    button { font: inherit; }
+
+    .page {
+      width: min(100% - 24px, 980px);
+      margin: 0 auto;
+      padding: 28px 0 36px;
+    }
+
+    header { text-align: center; margin-bottom: 20px; }
+
+    h1 {
+      margin: 0;
+      color: #f4a340;
+      font-size: clamp(1.7rem, 5vw, 2.6rem);
+      letter-spacing: .035em;
+      text-shadow: 0 2px 0 #572d10;
+    }
+
+    .date { margin: 5px 0 0; color: #d7bd99; }
+
+    .game-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .arena-card, .panel {
+      border: 1px solid #79502f;
+      border-radius: 12px;
+      background: linear-gradient(145deg, #39271b, #2b1d15);
+      box-shadow: 0 12px 30px #120b0780;
+    }
+
+    .arena-card { padding: 12px; }
+
+    canvas {
+      display: block;
+      width: min(100%, 620px);
+      height: auto;
+      aspect-ratio: 29 / 30;
+      margin: 0 auto;
+      border: 1px solid #a87a46;
+      border-radius: 5px;
+      background: #34291e;
+      touch-action: manipulation;
+      cursor: crosshair;
+    }
+
+    .hint {
+      margin: 10px 2px 1px;
+      color: #d7bd99;
+      font-size: .88rem;
+      text-align: center;
+    }
+
+    .panel { padding: 15px; }
+    .panel + .panel { margin-top: 14px; }
+
+    h2 {
+      margin: 0 0 10px;
+      color: #f4a340;
+      font-size: 1.05rem;
+    }
+
+    .status {
+      min-height: 48px;
+      margin: 0 0 12px;
+      color: #f5e5c7;
+      line-height: 1.45;
+    }
+
+    .attempts { margin: 0 0 12px; color: #d7bd99; font-size: .92rem; }
+
+    .target-list { display: grid; gap: 7px; }
+
+    .target-button, .action-button {
+      width: 100%;
+      border: 1px solid #8e633b;
+      border-radius: 7px;
+      padding: 9px 10px;
+      color: #f5e5c7;
+      background: #49311f;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .target-button:hover:not(:disabled), .action-button:hover:not(:disabled) {
+      border-color: #f4a340;
+      background: #5a3920;
+    }
+
+    .target-button[aria-pressed="true"] {
+      border-color: #ffc260;
+      box-shadow: inset 0 0 0 1px #ffc260;
+    }
+
+    .target-button:disabled { cursor: default; opacity: .58; }
+    .target-button .range { color: #d7bd99; font-size: .82rem; }
+    .target-button .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 7px; border-radius: 50%; }
+
+    .action-button {
+      margin-top: 8px;
+      text-align: center;
+      font-weight: 650;
+    }
+
+    .action-button:disabled { cursor: not-allowed; opacity: .45; }
+
+    .legend { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .legend li { display: flex; gap: 8px; align-items: center; font-size: .88rem; }
+    .legend .swatch { flex: 0 0 12px; height: 12px; border-radius: 50%; }
+
+    .overlay-key { margin: 12px 0 0; color: #d7bd99; font-size: .82rem; line-height: 1.5; }
+    .note { margin: 10px 0 0; color: #c8ae8a; font-size: .8rem; line-height: 1.5; }
+    .result { margin-top: 10px; padding: 9px; border-radius: 6px; background: #21150f; font-size: .88rem; overflow-wrap: anywhere; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 720px) {
+      .page { width: min(100% - 16px, 620px); padding-top: 19px; }
+      .game-layout { grid-template-columns: 1fr; gap: 12px; }
+      .side-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .panel + .panel { margin-top: 0; }
+    }
+
+    @media (max-width: 440px) {
+      .side-panels { grid-template-columns: 1fr; }
+      .arena-card { padding: 7px; }
+      .panel { padding: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Daily Inferno Wave</h1>
+      <p class="date" id="date-label"></p>
+    </header>
+
+    <div class="game-layout">
+      <section class="arena-card" aria-label="Inferno arena">
+        <canvas id="arena" aria-label="29 by 30 tile Inferno arena"></canvas>
+        <p class="hint">Pick a target, then tap a tile where only that mob has line of sight.</p>
+      </section>
+
+      <div class="side-panels">
+        <section class="panel" aria-labelledby="play-heading">
+          <h2 id="play-heading">Choose your target</h2>
+          <p class="status" id="status" aria-live="polite"></p>
+          <p class="attempts" id="attempt-count"></p>
+          <div class="target-list" id="targets" aria-label="Available targets"></div>
+          <button class="action-button" id="overlay-button" type="button" aria-pressed="false">Toggle LOS overlay</button>
+          <button class="action-button" id="copy-button" type="button" hidden>Copy result</button>
+          <p class="result" id="copy-status" aria-live="polite" hidden></p>
+        </section>
+
+        <section class="panel" aria-labelledby="legend-heading">
+          <h2 id="legend-heading">Wave legend</h2>
+          <ul class="legend" id="legend"></ul>
+          <p class="overlay-key">LOS overlay: <span style="color:#75c878">green</span> = none · <span style="color:#f2ca57">yellow</span> = one · <span style="color:#ed6955">red</span> = several.</p>
+          <p class="note">Simplified practice puzzle: movement, attack timing, and other Inferno mechanics are not simulated.</p>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    "use strict";
+
+    const COLS = 29;
+    const ROWS = 30;
+    const MAX_ATTEMPTS = 3;
+    const MOB_TYPES = [
+      { name: "Jal-MejRah (Bat)", width: 2, height: 2, range: 4, color: "#b58ae0" },
+      { name: "Jal-Ak (Blob)", width: 3, height: 3, range: 15, color: "#73c7aa" },
+      { name: "Jal-Xil (Ranger)", width: 3, height: 3, range: 15, color: "#76a9e8" },
+      { name: "Jal-Zek (Mager)", width: 3, height: 3, range: 15, color: "#eb7770" }
+    ];
+    const PILLARS = [{ x: 3, y: 20 }, { x: 22, y: 20 }, { x: 12, y: 5 }].map(p => ({
+      ...p, width: 3, height: 3
+    }));
+
+    const canvas = document.getElementById("arena");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+    const attemptsEl = document.getElementById("attempt-count");
+    const targetsEl = document.getElementById("targets");
+    const overlayButton = document.getElementById("overlay-button");
+    const copyButton = document.getElementById("copy-button");
+    const copyStatus = document.getElementById("copy-status");
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const storageKey = `daily-inferno-wave:${dateKey}`;
+
+    document.getElementById("date-label").textContent = `UTC daily puzzle · ${dateKey}`;
+    document.getElementById("legend").innerHTML = MOB_TYPES.map(type =>
+      `<li><span class="swatch" style="background:${type.color}"></span><span>${type.name} · range ${type.range}</span></li>`
+    ).join("");
+
+    function hashSeed(text) {
+      let hash = 2166136261;
+      for (let i = 0; i < text.length; i++) {
+        hash ^= text.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      return hash >>> 0;
+    }
+
+    function makeRandom(seed) {
+      let value = seed >>> 0;
+      return function random() {
+        value += 0x6D2B79F5;
+        let t = value;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function shuffle(items, random) {
+      const result = items.slice();
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+      return result;
+    }
+
+    function overlaps(a, b) {
+      return a.x < b.x + b.width && a.x + a.width > b.x &&
+        a.y < b.y + b.height && a.y + a.height > b.y;
+    }
+
+    function tooClose(a, b) {
+      const separatedX = a.x + a.width + 1 <= b.x || b.x + b.width + 1 <= a.x;
+      const separatedY = a.y + a.height + 1 <= b.y || b.y + b.height + 1 <= a.y;
+      return !(separatedX || separatedY);
+    }
+
+    function lineClear(x0, y0, x1, y1) {
+      const dx = Math.abs(x1 - x0);
+      const sx = x0 < x1 ? 1 : -1;
+      const dy = -Math.abs(y1 - y0);
+      const sy = y0 < y1 ? 1 : -1;
+      let error = dx + dy;
+      let x = x0;
+      let y = y0;
+      while (true) {
+        if (PILLARS.some(p => x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height)) {
+          return false;
+        }
+        if (x === x1 && y === y1) return true;
+        const twiceError = 2 * error;
+        if (twiceError >= dy) { error += dy; x += sx; }
+        if (twiceError <= dx) { error += dx; y += sy; }
+      }
+    }
+
+    function mobSeesTile(mob, x, y) {
+      for (let mx = mob.x; mx < mob.x + mob.width; mx++) {
+        for (let my = mob.y; my < mob.y + mob.height; my++) {
+          if (Math.max(Math.abs(mx - x), Math.abs(my - y)) <= mob.range && lineClear(mx, my, x, y)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function isBlocked(x, y, mobs) {
+      return PILLARS.some(p => x >= p.x && x < p.x + p.width && y >= p.y && y < p.y + p.height) ||
+        mobs.some(m => x >= m.x && x < m.x + m.width && y >= m.y && y < m.y + m.height);
+    }
+
+    function visibleMobsAt(x, y, mobs) {
+      return mobs.filter(mob => mobSeesTile(mob, x, y));
+    }
+
+    function getValidTiles(mob, mobs) {
+      const tiles = [];
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (isBlocked(x, y, mobs)) continue;
+          const seen = visibleMobsAt(x, y, mobs);
+          if (seen.length === 1 && seen[0].id === mob.id) tiles.push({ x, y });
+        }
+      }
+      return tiles;
+    }
+
+    function createLayout() {
+      for (let variation = 0; variation < 250; variation++) {
+        const random = makeRandom(hashSeed(`${dateKey}:${variation}`));
+        const count = 4 + Math.floor(random() * 3);
+        const types = [];
+        while (types.length < count) {
+          types.push(MOB_TYPES[Math.floor(random() * MOB_TYPES.length)]);
+        }
+        const mobs = [];
+        let failed = false;
+
+        for (let i = 0; i < count; i++) {
+          const type = types[i];
+          let placed = false;
+          for (let attempt = 0; attempt < 1200 && !placed; attempt++) {
+            const mob = {
+              ...type,
+              id: `mob-${i}`,
+              label: `${type.name}${types.slice(0, i).filter(t => t.name === type.name).length ? ` #${types.slice(0, i).filter(t => t.name === type.name).length + 1}` : ""}`,
+              x: Math.floor(random() * (COLS - type.width + 1)),
+              y: Math.floor(random() * 16)
+            };
+            const collidesWithPillar = PILLARS.some(p => overlaps(mob, p));
+            const tooNearMob = mobs.some(other => tooClose(mob, other));
+            if (!collidesWithPillar && !tooNearMob) {
+              mobs.push(mob);
+              placed = true;
+            }
+          }
+          if (!placed) { failed = true; break; }
+        }
+        if (failed) continue;
+
+        const targets = mobs.map(mob => ({ mob, tiles: getValidTiles(mob, mobs) }))
+          .filter(candidate => candidate.tiles.length > 0);
+        if (targets.length) {
+          return { mobs, targets, selectedTarget: null };
+        }
+      }
+      throw new Error("Could not generate a solvable daily layout.");
+    }
+
+    const puzzle = createLayout();
+    const saved = loadProgress();
+    let persistenceWarning = "";
+    const state = saved || {
+      attempts: 0,
+      selectedTarget: null,
+      finished: false,
+      won: false,
+      guesses: [],
+      lastGuess: null
+    };
+    let showOverlay = false;
+
+    function loadProgress() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (!raw) return null;
+        const progress = JSON.parse(raw);
+        if (!progress || !Number.isInteger(progress.attempts) || progress.attempts < 0 ||
+            progress.attempts > MAX_ATTEMPTS || !Array.isArray(progress.guesses)) {
+          throw new Error("Saved game data is invalid.");
+        }
+        if (progress.selectedTarget && !puzzle.targets.some(t => t.mob.id === progress.selectedTarget)) {
+          throw new Error("Saved target does not match today's puzzle.");
+        }
+        return progress;
+      } catch (error) {
+        console.error("Unable to load saved Daily Inferno progress.", error);
+        return null;
+      }
+    }
+
+    function saveProgress() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(state));
+      } catch (error) {
+        console.error("Unable to save Daily Inferno progress.", error);
+        persistenceWarning = "Progress could not be saved in this browser.";
+      }
+    }
+
+    function selectedTarget() {
+      return puzzle.targets.find(target => target.mob.id === state.selectedTarget) || null;
+    }
+
+    function syncInterface() {
+      const target = selectedTarget();
+      targetsEl.innerHTML = "";
+      puzzle.targets.forEach(({ mob, tiles }) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "target-button";
+        button.setAttribute("aria-pressed", String(state.selectedTarget === mob.id));
+        button.disabled = state.finished;
+        button.innerHTML = `<span class="swatch" style="background:${mob.color}"></span>${mob.label} <span class="range">· ${tiles.length} safe tile${tiles.length === 1 ? "" : "s"}</span>`;
+        button.addEventListener("click", () => {
+          if (state.finished) return;
+          state.selectedTarget = mob.id;
+          state.lastGuess = null;
+          saveProgress();
+          syncInterface();
+          draw();
+        });
+        targetsEl.append(button);
+      });
+
+      attemptsEl.textContent = `Attempts: ${state.attempts}/${MAX_ATTEMPTS}`;
+      if (state.finished) {
+        statusEl.textContent = state.won
+          ? `Safe pull! ${target ? target.tiles.length : 0} valid tile${target && target.tiles.length === 1 ? "" : "s"} shown in white.`
+          : `Wave over. ${target ? target.tiles.length : 0} valid tile${target && target.tiles.length === 1 ? "" : "s"} shown in white.`;
+      } else if (!target) {
+        statusEl.textContent = "Choose one of the mobs with a valid safe-pull tile.";
+      } else if (state.lastGuess) {
+        const names = state.lastGuess.seen.map(id => puzzle.mobs.find(m => m.id === id).label);
+        statusEl.textContent = names.length
+          ? `Seen by ${names.join(", ")}. Choose another tile or target.`
+          : "No mob saw that tile. Choose another tile or target.";
+      } else {
+        statusEl.textContent = `Target: ${target.mob.label}. Find a tile only it can see.`;
+      }
+      if (persistenceWarning) statusEl.textContent += ` ${persistenceWarning}`;
+
+      copyButton.hidden = !state.finished;
+      copyStatus.hidden = true;
+      overlayButton.setAttribute("aria-pressed", String(showOverlay));
+      overlayButton.textContent = showOverlay ? "Hide LOS overlay" : "Toggle LOS overlay";
+      draw();
+    }
+
+    function resizeCanvas() {
+      const bounds = canvas.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.round(bounds.width * ratio);
+      canvas.height = Math.round(bounds.width * ROWS / COLS * ratio);
+      draw();
+    }
+
+    function draw() {
+      if (!ctx || !canvas.width) return;
+      const tileW = canvas.width / COLS;
+      const tileH = canvas.height / ROWS;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#34291e";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < COLS; x++) {
+          if (showOverlay && !isBlocked(x, y, puzzle.mobs)) {
+            const count = visibleMobsAt(x, y, puzzle.mobs).length;
+            ctx.fillStyle = count === 0 ? "#426c43" : count === 1 ? "#88702e" : "#843e35";
+            ctx.fillRect(x * tileW, y * tileH, tileW, tileH);
+          } else if ((x + y) % 2 === 0) {
+            ctx.fillStyle = "#ffffff08";
+            ctx.fillRect(x * tileW, y * tileH, tileW, tileH);
+          }
+        }
+      }
+
+      if (state.finished) {
+        const target = selectedTarget();
+        if (target) {
+          ctx.fillStyle = "#fff8e6";
+          target.tiles.forEach(tile => ctx.fillRect(tile.x * tileW, tile.y * tileH, tileW, tileH));
+        }
+      }
+
+      ctx.strokeStyle = "#6b5945";
+      ctx.lineWidth = Math.max(1, canvas.width / 900);
+      for (let x = 0; x <= COLS; x++) {
+        ctx.beginPath(); ctx.moveTo(x * tileW, 0); ctx.lineTo(x * tileW, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y <= ROWS; y++) {
+        ctx.beginPath(); ctx.moveTo(0, y * tileH); ctx.lineTo(canvas.width, y * tileH); ctx.stroke();
+      }
+
+      PILLARS.forEach(p => {
+        ctx.fillStyle = "#80512e";
+        ctx.fillRect(p.x * tileW, p.y * tileH, p.width * tileW, p.height * tileH);
+        ctx.strokeStyle = "#c18a4d";
+        ctx.lineWidth = Math.max(2, canvas.width / 350);
+        ctx.strokeRect(p.x * tileW + 1, p.y * tileH + 1, p.width * tileW - 2, p.height * tileH - 2);
+        ctx.strokeStyle = "#6b5945";
+        ctx.lineWidth = Math.max(1, canvas.width / 900);
+      });
+
+      puzzle.mobs.forEach(mob => {
+        const x = mob.x * tileW;
+        const y = mob.y * tileH;
+        ctx.fillStyle = mob.color;
+        ctx.globalAlpha = .78;
+        ctx.fillRect(x + tileW * .08, y + tileH * .08, mob.width * tileW - tileW * .16, mob.height * tileH - tileH * .16);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = state.selectedTarget === mob.id ? "#fff3c8" : "#21150f";
+        ctx.lineWidth = state.selectedTarget === mob.id ? Math.max(3, canvas.width / 250) : Math.max(1, canvas.width / 700);
+        ctx.strokeRect(x + tileW * .12, y + tileH * .12, mob.width * tileW - tileW * .24, mob.height * tileH - tileH * .24);
+        ctx.fillStyle = "#21150f";
+        ctx.font = `bold ${Math.max(9, tileW * 1.05)}px system-ui`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(mob.label.includes("Bat") ? "B" : mob.label.includes("Blob") ? "A" : mob.label.includes("Ranger") ? "X" : "Z",
+          x + mob.width * tileW / 2, y + mob.height * tileH / 2);
+      });
+
+      if (state.lastGuess && !state.finished) {
+        const { x, y, seen } = state.lastGuess;
+        seen.forEach(id => {
+          const mob = puzzle.mobs.find(m => m.id === id);
+          if (!mob) return;
+          let nearest = { x: mob.x, y: mob.y };
+          let best = Infinity;
+          for (let mx = mob.x; mx < mob.x + mob.width; mx++) {
+            for (let my = mob.y; my < mob.y + mob.height; my++) {
+              const distance = Math.max(Math.abs(mx - x), Math.abs(my - y));
+              if (distance < best && lineClear(mx, my, x, y)) { nearest = { x: mx, y: my }; best = distance; }
+            }
+          }
+          ctx.beginPath();
+          ctx.moveTo((nearest.x + .5) * tileW, (nearest.y + .5) * tileH);
+          ctx.lineTo((x + .5) * tileW, (y + .5) * tileH);
+          ctx.strokeStyle = mob.color;
+          ctx.lineWidth = Math.max(2, canvas.width / 400);
+          ctx.setLineDash([canvas.width / 100, canvas.width / 150]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = Math.max(2, canvas.width / 400);
+        ctx.strokeRect(x * tileW + 2, y * tileH + 2, tileW - 4, tileH - 4);
+      }
+    }
+
+    function handleCanvasClick(event) {
+      if (state.finished || !state.selectedTarget) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((event.clientX - rect.left) / rect.width * COLS);
+      const y = Math.floor((event.clientY - rect.top) / rect.height * ROWS);
+      if (x < 0 || x >= COLS || y < 0 || y >= ROWS || isBlocked(x, y, puzzle.mobs)) return;
+
+      const seen = visibleMobsAt(x, y, puzzle.mobs);
+      const target = selectedTarget();
+      const correct = seen.length === 1 && seen[0].id === target.mob.id;
+      state.attempts++;
+      state.guesses.push(correct ? "🟩" : "🟥");
+      state.lastGuess = { x, y, seen: seen.map(mob => mob.id) };
+      if (correct) {
+        state.won = true;
+        state.finished = true;
+      } else if (state.attempts >= MAX_ATTEMPTS) {
+        state.finished = true;
+      }
+      saveProgress();
+      syncInterface();
+    }
+
+    async function copyResult() {
+      const score = state.won ? `${state.attempts}/${MAX_ATTEMPTS}` : `X/${MAX_ATTEMPTS}`;
+      const text = `Daily Inferno ${dateKey} ${state.guesses.join("")} ${score}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        copyStatus.textContent = "Result copied!";
+      } catch (error) {
+        console.error("Unable to copy the Daily Inferno result.", error);
+        copyStatus.textContent = "Clipboard access failed. Copy this result: " + text;
+      }
+      copyStatus.hidden = false;
+    }
+
+    overlayButton.addEventListener("click", () => {
+      showOverlay = !showOverlay;
+      syncInterface();
+    });
+    copyButton.addEventListener("click", copyResult);
+    canvas.addEventListener("click", handleCanvasClick);
+    window.addEventListener("resize", resizeCanvas);
+    if ("ResizeObserver" in window) new ResizeObserver(resizeCanvas).observe(canvas);
+
+    resizeCanvas();
+    syncInterface();
+  </script>
+</body>
+</html>
